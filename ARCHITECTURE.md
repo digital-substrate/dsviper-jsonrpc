@@ -222,7 +222,9 @@ The familiar `find({ value: { $gte: 2 } })` dialect is a **client-side** transla
 tree (operator names without the sigil; an `_id` filter becomes a `key:"instance"` leaf). The wire
 never sees the dialect, so a second client dialect maps onto the same tree without touching the wire.
 
-## 5. Addressing — keys
+## 5. Addressing — keys, paths, and value projection
+
+### 5.1 Keys
 
 A key is the couple `(instance, concept)`:
 
@@ -233,16 +235,79 @@ A key is the couple `(instance, concept)`:
 `instance` is a UUID (the entity identity); `concept` is the qualified concept name. The `keyType`
 comes from the attachment, never the wire. A hierarchical key is an array of such segments.
 
-**Paths** are the JSON image of a runtime path component — `{ "type": …, "value": … }` — with the
-component types `Field` / `Index` / `Key` / `Position` / `Entry` / `Element` / `Unwrap`. For paths
-through fields and indices, the compact dotted form (`"address.city"`, `"items[0].name"`) is accepted
-sugar; the component-array form is required where the projection is lossy (a typed map key, an xarray
-position, …).
-
 **Un-projection.** The runtime renders an embedded key as `[instanceHex, conceptRuntimeIdHex]`. The
 gateway un-projects every key that leaves the server — row keys, embedded key fields, expand outputs —
 back to the human `{ instance, concept }` form, using a once-per-schema map from concept runtime id to
 qualified concept name.
+
+### 5.2 Paths
+
+A `path` (the address a mutation verb edits into a document) is a **sequence of components**, each a
+`{ "type": …, "value": … }` pair: `type` names the kind of step, `value` is the JSON literal that
+parameterizes it. The canonical form is the component array:
+
+```jsonc
+"path": [
+  { "type": "Field", "value": "materialAssignments" },
+  { "type": "Key",   "value": { "instance": "…", "concept": "Surface::Material" } },
+  { "type": "Field", "value": "color" }
+]
+```
+
+| `type` | `value` | Step |
+|--------|---------|------|
+| `Field` | a string — the field name | a record/struct field |
+| `Index` | an unsigned integer | a vector position |
+| `Key` | the map's key, projected as its own literal (**any** type, per §5.3) | a map entry, by key |
+| `Position` | a UUID string | a stable position in an `XArray` |
+| `Entry` | the entry value | a set/map entry edit (non-regular) |
+| `Element` | an unsigned integer | a set element (non-regular) |
+| `Unwrap` | *omitted* | step into an `Optional` |
+
+**Dotted sugar.** Where a path runs through `Field`s, `Index`es, and string `Key`s only, a client MAY
+send the compact JSONPath-style string instead — the *singular*, no-wildcard form that names exactly
+one node — which the gateway expands to the array:
+
+```jsonc
+"path": "a.b[0].c"   ≡   [ {"type":"Field","value":"a"}, {"type":"Field","value":"b"},
+                           {"type":"Index","value":0}, {"type":"Field","value":"c"} ]
+```
+
+The string form addresses pure JSON — object members and array indices — so it expresses exactly
+`Field`, `Index`, and a string `Key`, and nothing past that. No wildcards, slices, or filters: those
+are *query* (the `where` selector), never a mutation path. The **component-array form is required**
+wherever the address is not projection-faithful: a **typed `Key`** (a structured, non-string key), an
+**XArray `Position`** (a UUID, not an ordinal), an `Entry` / `Element` / `Unwrap`, or any field name
+that itself contains a `.` or `[`.
+
+### 5.3 Value projection — how a typed value appears as a JSON literal
+
+A document crosses the wire as a JSON literal with its *type* dropped (the one law, §0) and restored
+on arrival from the schema. The projection is lossy exactly where the runtime out-expresses JSON, so a
+client serializing or reading a document needs the shape of each case:
+
+| Typed value | JSON literal |
+|-------------|--------------|
+| any integer / float / double | a `number` (the schema picks the exact numeric type back) |
+| `Structure` (a record) | a JSON `object` — string field names |
+| `Set` / `Vector` / `Tuple` | an `array` |
+| `Map` (any key type) | an `array` of `[key, value]` pairs — **always**, even for string keys (see below) |
+| `Variant` (a sum) | a tagged `{ "type": "<case>", "value": … }` |
+| `Optional` | `null` when absent |
+| `Blob` (inline bytes) | a base64 string |
+| `Key` | `{ "instance": "<uuid>", "concept": "<name>" }` (§5.1) |
+| `XArray` | an `array` (the stable positions travel apart, not inline) |
+| `Enumeration` | the case-name string |
+| `Vec` / `Mat` | an `array` of numbers |
+| `UUId` / `CommitId` / `BlobId` | a hex string |
+
+**The `Map` case, precisely.** A map projects to `[ [k, v], … ]` — an array of two-element arrays —
+**with no special case for string keys**. Position 0 is the key projected as its own literal, which
+may be *any* JSON value; that is exactly why an entry is a pair-array and not an object field, since a
+JSON object key must be a string. Only a `Structure` (a record, with fixed string field names) stays a
+JSON object — the object-vs-pairs split tracks **record vs. map**. This is also the shape JavaScript
+needs: `JSON.stringify(new Map())` drops entries, so a JS `Map` serializes as `[...map]` = `[[k,v],…]`
+and rebuilds with `new Map(pairs)`. So **typed map ↔ wire `[[k,v],…]` ↔ JS `Map`** throughout.
 
 ## 6. The commit & divergence model
 
@@ -295,11 +360,20 @@ asynchronous** — the reducer is the commit (content-addressed, with history an
 
 ## 9. Status
 
-- **Query language — implemented.** `source.py` (lazy `rows` source), `query.py` (server
-  compiler: tagged tree → lazy chain, with key-pushdown), `mongo.py` (client dialect → tagged tree),
-  `test_query.py` (server compiler, client round-trip parity, laziness, a real database).
-- **Gateway — proof-of-concept** (`gateway_server.py`): the round-trip and a subset of ops. Realizing
-  the full wire column (§3) — wiring the query engine in, un-projection, the DAG ops, the located
-  error catalog, session lifecycle, the blob plane — is the next step.
-- **Clients — not yet built.** The basic client (2a) is the dual of the wire column; the store (2b)
-  builds on it.
+A prototype, proven end-to-end over real HTTP. All three layers are built and tested.
+
+- **Gateway (layer 1) — built.** `server/app.py` realizes the full wire column (§3): schema,
+  read/query with key-pushdown and cursors, the eleven-verb commit envelope, the commit DAG,
+  located errors, one-handle-per-session with a database catalog (`databases` / `connect`), and the
+  blob JSON plane. Supported by `server/source.py` (the lazy row source), `server/query.py` (the
+  tagged-tree → lazy-chain compiler), and `server/unproject.py` (embedded-key un-projection).
+- **Basic client (layer 2a) — built.** `clients/js/client.mjs` — the wire ops as idiomatic async
+  JavaScript (ESM, zero deps, Node 18+ and the browser).
+- **Store + dialect (layer 2b) — built.** `clients/js/store.mjs` (the redux-style CommitStore:
+  dispatch, subscribe, non-destructive undo/redo, divergence handling) over
+  `clients/js/mongo.mjs` (the Mongo read/update dialect → the neutral wire).
+- **Tests.** `tests/server/` exercises the gateway in-process; `tests/clients/js/` drives the SDK
+  against a real HTTP gateway. `run_tests.sh` runs every suite.
+- **Deferred.** The raw-binary blob HTTP routes (a transport optimisation over the base64 JSON
+  plane), live multi-client push (a WebSocket fed by the runtime's change notifier), session
+  idle-timeout, and a typed (generated) client.

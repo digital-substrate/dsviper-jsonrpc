@@ -20,7 +20,7 @@ server/         the Python server — a faithful JSON projection of the CommitDa
   query.py        the query compiler (tagged-tree wire -> py-linq chain)
   unproject.py    embedded-key un-projection (runtime ids -> human {instance, concept})
   app.py          the Gateway + sessions + the database catalog + the HTTP server
-clients/js/     the JavaScript SDK (ESM, zero deps, Node 18+ and the browser)
+clients/js/     the JavaScript SDK (ESM, zero deps, Node 18+ and the browser) — see its README
   client.mjs      the basic client — the wire ops as async methods (1:1)
   store.mjs       the CommitStore — the redux-style application model
   mongo.mjs       the Mongo dialect — filter/update -> the neutral wire (client-side)

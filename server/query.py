@@ -35,13 +35,13 @@ def _set_path(doc, path, value):
 
 # ---------------------------------------------------------------- predicate engine
 _COMPARATORS = {
-    "eq":  lambda a, b: a == b,
-    "ne":  lambda a, b: a != b,
-    "gt":  lambda a, b: a is not _MISSING and a > b,
+    "eq": lambda a, b: a == b,
+    "ne": lambda a, b: a != b,
+    "gt": lambda a, b: a is not _MISSING and a > b,
     "gte": lambda a, b: a is not _MISSING and a >= b,
-    "lt":  lambda a, b: a is not _MISSING and a < b,
+    "lt": lambda a, b: a is not _MISSING and a < b,
     "lte": lambda a, b: a is not _MISSING and a <= b,
-    "in":  lambda a, b: a in b,
+    "in": lambda a, b: a in b,
     "nin": lambda a, b: a not in b,
 }
 

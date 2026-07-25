@@ -18,7 +18,7 @@ Use [GitHub Issues](https://github.com/digital-substrate/dsviper-jsonrpc/issues)
 Requires Python 3.10+ (with the `dsviper` and `py-linq` wheels) and Node 18+.
 
 ```bash
-pip install dsviper py-linq            # the runtime binding and the query engine
+pip install "dsviper<2" py-linq        # the runtime binding and the query engine
 ```
 
 The test suite builds its fixture database from the `Graph.dsm` schema in the

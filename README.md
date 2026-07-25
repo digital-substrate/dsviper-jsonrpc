@@ -59,3 +59,11 @@ eleven-verb commit / the commit DAG / located errors / one-handle-per-session wi
 catalog / the blob plane), the basic JS client, and the CommitStore (Mongo read + redux dispatch +
 faithful undo/redo + divergence handling). **Deferred:** the raw-binary blob HTTP routes, live
 multi-client push (WebSocket), session idle-timeout, and the typed (generated) client.
+
+## Runtime dependency
+
+At runtime, this project depends on the `dsviper` Python package
+(distributed on PyPI), which is **proprietary** (license expression
+`LicenseRef-DigitalSubstrate-Commercial-1.2`). See
+[https://pypi.org/project/dsviper/](https://pypi.org/project/dsviper/)
+for the package's licensing posture and contact information.

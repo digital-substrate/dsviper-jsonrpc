@@ -338,18 +338,33 @@ class DirectoryCatalog:
         self.base_dir = base_dir
         self.readonly = readonly
 
+    # A name designates a plain file directly inside base_dir. basename() rejects
+    # the separators; realpath() rejects the symlink, which passes every syntactic
+    # check and still leaves the directory. Both entry points resolve here, so a
+    # name that names() lists is a name open() accepts.
+    def _resolve(self, name):
+        if not name or os.path.basename(name) != name or name in (".", ".."):
+            return None
+        base = os.path.realpath(self.base_dir)
+        p = os.path.realpath(os.path.join(base, name))
+        try:
+            inside = os.path.commonpath([base, p]) == base
+        except ValueError:          # different drives, on Windows
+            inside = False
+        return p if inside else None
+
     def names(self):
         out = []
         for f in sorted(os.listdir(self.base_dir)):
-            p = os.path.join(self.base_dir, f)
-            if os.path.isfile(p) and dsviper.CommitDatabase.is_compatible(p):
+            p = self._resolve(f)
+            if p and os.path.isfile(p) and dsviper.CommitDatabase.is_compatible(p):
                 out.append(f)
         return out
 
     def open(self, name):
-        if not name or os.path.basename(name) != name or name in (".", ".."):
+        p = self._resolve(name)
+        if p is None:
             raise ValueError(f"invalid database name {name!r}")
-        p = os.path.join(self.base_dir, name)
         if not (os.path.isfile(p) and dsviper.CommitDatabase.is_compatible(p)):
             raise FileNotFoundError(f"no compatible database {name!r}")
         return dsviper.CommitDatabase.open(p, readonly=self.readonly)

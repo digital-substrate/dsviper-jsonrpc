@@ -13,7 +13,9 @@ GATEWAY_DB=/path/to/a.graph      node app.mjs      # a single database, connecte
 node app.mjs                                       # an in-memory database
 ```
 
-Listens on `http://127.0.0.1:8787/execute`. Requirements: Node >= 18.
+Listens on `http://127.0.0.1:8787/execute`. Requirements: Node >= 22, and the
+`dsviper-node-query` repository checked out as a sibling — the row source and the total
+ordering come from that package, which is not on npm yet and is resolved by path.
 
 ## Modules
 
@@ -22,8 +24,7 @@ Mirrors the Python server one-to-one:
 | Module          | Role                                                        |
 |-----------------|-------------------------------------------------------------|
 | `app.mjs`       | `Gateway` (the ops) + sessions + catalogs + the HTTP server  |
-| `query.mjs`     | tagged-tree query AST -> a lazy chain over the row source     |
-| `source.mjs`    | the lazy `[key, document]` row source                        |
+| `query.mjs`     | tagged-tree query AST -> a lazy chain over the query layer     |
 | `unproject.mjs` | embedded-key un-projection -> `{instance, concept}`          |
 
 ## Deliberate differences from the Python server
@@ -35,22 +36,18 @@ required *not* matching the code.
   (`ThreadingHTTPServer`) and locks the session. Here the event loop already
   serialises requests and every binding call is synchronous, so the handler *is* the
   critical section. Note the consequence: a long call blocks the whole server.
-- **Explicit value semantics in the predicate engine.** Python's `==` and `<` already
-  dispatch to a value's own relations; JavaScript's `===` compares objects by reference
-  and has no operator overloading. Equality and ordering therefore go through two
-  primitives modelled on the `dsviper-query` / `@digitalsubstrate/dsviper-query`
-  packages: duck-typed on the runtime's total `.equals()` / `.compare()` for a wrapped
-  value, native otherwise. Documents are dumped to JSON before the predicate runs, so
-  the native branch is the one that executes today.
-  The native fallback is a *structural* comparison rather than those packages'
-  `canonicalKey` token, which folds every non-scalar to `'obj:' + String(value)` and
-  would make `{a: 1}` and `{b: 2}` compare equal — it exists to key a `Map`/`Set` on
-  scalars and wrapped values, and the wire carries decoded JSON containers.
-- **Nils sort last, and never match an order comparison.** A missing or null field
-  sorts after every present value (a total order that cannot fail), while `>`, `>=`,
-  `<` and `<=` require the field to be present — so `value > 5` excludes a document
-  without the field instead of treating its absence as a large value. Python raises on
-  a heterogeneous or null comparison instead.
+- **Equality is local, ordering is not.** Ordering uses the query layer's
+  `compareValues` directly, as the Python server uses `compare_values`. Equality stays
+  local: the package's own equality keys on `canonicalKey`, a token that folds every
+  non-scalar to `'obj:' + String(value)` — right for keying a `Map`/`Set` on scalars and
+  wrapped values, wrong for the decoded JSON containers the wire carries, where it would
+  make `{a: 1}` and `{b: 2}` compare equal. So `eq`/`ne`/`in`/`nin` go through a
+  structural comparison, which is what Python's `==` does on the other side.
+- **Order comparisons require a present field.** `>`, `>=`, `<` and `<=` exclude a
+  document without the field rather than reading its absence as a large value —
+  decoupled from the total order, where a nil sorts last. (Sorting itself is no longer
+  a difference: both servers now call the query layer's total ordering, so a missing
+  field sorts last on either one.)
 - **Cursors are pulled with `next()`.** Breaking out of a `for...of` calls the
   iterator's `return()`, which closes a generator — the next page would find it
   exhausted. Python's `for`/`return` leaves the iterator resumable.

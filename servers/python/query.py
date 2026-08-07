@@ -1,8 +1,10 @@
-"""Query compiler: a tagged-tree query AST -> a py-linq chain over the lazy row source."""
+"""Query compiler: a tagged-tree query AST -> a lazy chain over the query layer's row source."""
 import re
+from functools import cmp_to_key
+from itertools import islice
+
 import dsviper
-from py_linq import Enumerable
-from source import rows
+from dsviper_query import compare_values, rows
 
 _MISSING = object()
 
@@ -107,19 +109,21 @@ def _compile_predicate(where, concept_name):
 
 
 # ---------------------------------------------------------------- ordering
-def _orderkey(value):
-    return (1, None) if value is _MISSING else (0, value)
-
-
-def _apply_order(en, order):
+def _apply_order(pairs, order):
+    """Sorts on the query layer's total compare_values: a missing or nil field sorts
+    last, and `desc` reverses the comparison. Materialises — a sort is a barrier."""
     specs = [{"path": o} if isinstance(o, str) else o for o in order]
-    first = specs[0]
-    sel = lambda kv, p=first["path"]: _orderkey(_get_path(kv[1], p))
-    se = en.order_by_descending(sel) if first.get("desc") else en.order_by(sel)
-    for s in specs[1:]:
-        sel = lambda kv, p=s["path"]: _orderkey(_get_path(kv[1], p))
-        se = se.then_by_descending(sel) if s.get("desc") else se.then_by(sel)
-    return se
+
+    def compare(a, b):
+        for spec in specs:
+            va, vb = _get_path(a[1], spec["path"]), _get_path(b[1], spec["path"])
+            c = compare_values(None if va is _MISSING else va,
+                               None if vb is _MISSING else vb)
+            if c:
+                return -c if spec.get("desc") else c
+        return 0
+
+    return sorted(pairs, key=cmp_to_key(compare))
 
 
 # ---------------------------------------------------------------- render: key / expand / select
@@ -221,13 +225,13 @@ def run_query(source, insp, q, *, render_key=None, render_doc=None, cursors=None
             if doc_pred(jdoc, key):
                 yield key, jdoc
 
-    en = Enumerable(pairs())
+    chain = pairs()
     if q.get("orderBy"):
-        en = _apply_order(en, q["orderBy"])
+        chain = _apply_order(chain, q["orderBy"])
     if q.get("skip"):
-        en = en.skip(q["skip"])
+        chain = islice(chain, q["skip"], None)
     if q.get("limit") is not None:
-        en = en.take(q["limit"])
+        chain = islice(chain, q["limit"])
 
     expand, select = q.get("expand"), q.get("select")
     render = lambda key, jdoc: _render_row(key, jdoc, ag, insp, expand, select, render_key, render_doc)
@@ -235,7 +239,7 @@ def run_query(source, insp, q, *, render_key=None, render_doc=None, cursors=None
     if q.get("cursor"):
         registry = _CURSORS if cursors is None else cursors
         cid = _new_cursor_id()
-        registry[cid] = (iter(en), render, q.get("batch", 100))
+        registry[cid] = (iter(chain), render, q.get("batch", 100))
         return _drain(cid, registry)
 
-    return {"ok": True, "rows": [render(key, jdoc) for key, jdoc in en]}
+    return {"ok": True, "rows": [render(key, jdoc) for key, jdoc in chain]}

@@ -1,7 +1,6 @@
 // Query compiler: a tagged-tree query AST -> a lazy chain over the lazy row source.
 import dsviper from '@digitalsubstrate/dsviper';
-
-import {rows} from './source.mjs';
+import {compareValues, rows} from '@digitalsubstrate/dsviper-query';
 
 const {Value} = dsviper;
 
@@ -72,17 +71,10 @@ function valuesEqual(a, b) {
     return deepEqual(a, b);
 }
 
+// MISSING is this module's own absent-field marker; the query layer's compareValues
+// speaks null/undefined, so it is mapped on the way in.
 const isNil = (v) => v === null || v === undefined || v === MISSING;
-
-// Total by construction: a nil sorts last, so a collection with missing or optional
-// fields still orders coherently. Among present values, a wrapped value rides the
-// runtime's total .compare(); a native pair rides < >.
-function compareValues(a, b) {
-    if (isNil(a) || isNil(b)) return isNil(a) && isNil(b) ? 0 : (isNil(a) ? 1 : -1);
-    if (typeof a.compare === 'function') return Math.sign(a.compare(b));
-    if (typeof b.compare === 'function') return -Math.sign(b.compare(a));
-    return a < b ? -1 : a > b ? 1 : 0;
-}
+const orderable = (v) => (v === MISSING ? null : v);
 
 const contains = (haystack, needle) =>
     typeof haystack === 'string' ? haystack.includes(needle)
@@ -168,7 +160,7 @@ function applyOrder(pairs, order) {
     const out = [...pairs];
     out.sort((x, y) => {
         for (const s of specs) {
-            const c = compareValues(getPath(x[1], s.path), getPath(y[1], s.path));
+            const c = compareValues(orderable(getPath(x[1], s.path)), orderable(getPath(y[1], s.path)));
             if (c !== 0) return s.desc ? -c : c;
         }
         return 0;

@@ -3,7 +3,7 @@
 
   A. the SERVER compiler (query.py): tagged tree -> py-linq chain, on the Graph
      model in-memory (deterministic) + a built Graph fixture;
-  B. the LAZINESS claims (source.rows + the compiler's key-pushdown partition),
+  B. the LAZINESS claims (the query layer's rows + the compiler's key-pushdown partition),
      observable only through a fake AttachmentGetting with a get() call counter.
 
 The client Mongo dialect is exercised by the JavaScript suite (the shipped dialect is
@@ -15,8 +15,9 @@ import sys
 import tempfile
 import dsviper
 import query
-from source import rows
-from py_linq import Enumerable
+from itertools import islice
+
+from dsviper_query import rows
 
 from graph_fixture import GRAPH_DSM, build
 
@@ -206,8 +207,7 @@ ITEMS = {f"k{i}": {"v": i} for i in range(10)}
 
 def t_lazy_first():
     fg = FakeGetting(ITEMS)
-    out = (Enumerable(rows(fg, None, encoded=False))
-           .where(lambda kv: kv[1]["v"] == 3).select(lambda kv: kv[0]).first_or_default())
+    out = next((k for k, doc in rows(fg, None, encoded=False) if doc["v"] == 3), None)
     assert out == "k3" and fg.get_calls == 4, (out, fg.get_calls)  # stops at the match
 
 
@@ -216,7 +216,7 @@ test("short-circuit: first fetches only up to match", t_lazy_first)
 
 def t_lazy_take():
     fg = FakeGetting(ITEMS)
-    out = Enumerable(rows(fg, None, encoded=False)).take(2).to_list()
+    out = list(islice(rows(fg, None, encoded=False), 2))
     assert len(out) == 2 and fg.get_calls == 2, fg.get_calls
 
 

@@ -7,7 +7,7 @@ rc=0
 echo "== server (python) =="
 for t in "$DIR"/tests/server/test_*.py; do
   printf '  %-26s ' "$(basename "$t")"
-  if PYTHONPATH="$DIR/servers/python:$DIR/tests/fixtures" python3 "$t" >/tmp/gw_test.log 2>&1; then
+  if PYTHONPATH="$DIR/servers/python:$DIR/tests/fixtures:$DIR/../dsviper-query" python3 "$t" >/tmp/gw_test.log 2>&1; then
     tail -1 /tmp/gw_test.log
   else
     echo "FAIL"; tail -6 /tmp/gw_test.log; rc=1

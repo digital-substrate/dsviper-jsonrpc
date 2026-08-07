@@ -1,15 +1,16 @@
 {
   "name": "dsviper-jsonrpc-server",
   "version": "0.1.0",
-  "description": "Node implementation of the dsviper-jsonrpc server — the same wire, over the N_Viper binding",
+  "description": "Node implementation of the dsviper-jsonrpc server \u2014 the same wire, over the N_Viper binding",
   "private": true,
   "type": "module",
   "main": "app.mjs",
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "dependencies": {
-    "@digitalsubstrate/dsviper": ">=1.2.8 <2"
+    "@digitalsubstrate/dsviper": ">=1.2.8 <2",
+    "@digitalsubstrate/dsviper-query": "file:../../../dsviper-node-query"
   },
   "license": "MIT"
 }

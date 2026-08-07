@@ -11,7 +11,7 @@ lsof -ti:8787 2>/dev/null | xargs kill 2>/dev/null || true
 if [ "${JSONRPC_SERVER:-python}" = "node" ]; then
   GATEWAY_DB_DIR="$TMP" node "$DIR/../../../servers/node/app.mjs" >"$TMP/gw.log" 2>&1 &
 else
-  GATEWAY_DB_DIR="$TMP" python3 "$DIR/../../../servers/python/app.py" >"$TMP/gw.log" 2>&1 &
+  GATEWAY_DB_DIR="$TMP" PYTHONPATH="$DIR/../../../../dsviper-query" python3 "$DIR/../../../servers/python/app.py" >"$TMP/gw.log" 2>&1 &
 fi
 GW=$!
 trap 'kill $GW 2>/dev/null; rm -rf "$TMP"' EXIT

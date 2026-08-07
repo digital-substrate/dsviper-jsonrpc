@@ -31,6 +31,17 @@ git clone https://github.com/digital-substrate/dsm-samples.git ../dsm-samples
 sh run_tests.sh
 ```
 
+The servers build on the consumer-side query layer, which they also expect as siblings —
+[`dsviper-query`](https://github.com/digital-substrate/dsviper-query) for the Python server
+and [`dsviper-node-query`](https://github.com/digital-substrate/dsviper-node-query) for the
+Node one. Neither is published to PyPI or npm yet, so both are resolved by path:
+
+```bash
+git clone https://github.com/digital-substrate/dsviper-query.git ../dsviper-query
+git clone https://github.com/digital-substrate/dsviper-node-query.git ../dsviper-node-query
+(cd servers/node && npm install)
+```
+
 To run the server by hand against your own databases:
 
 ```bash

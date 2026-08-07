@@ -7,7 +7,12 @@ TMP="$(mktemp -d)"
 python3 "$DIR/../../fixtures/graph_fixture.py" "$TMP/a.graph"
 
 lsof -ti:8787 2>/dev/null | xargs kill 2>/dev/null || true
-GATEWAY_DB_DIR="$TMP" python3 "$DIR/../../../server/app.py" >"$TMP/gw.log" 2>&1 &
+# Same wire, either implementation: JSONRPC_SERVER=python (default) or node.
+if [ "${JSONRPC_SERVER:-python}" = "node" ]; then
+  GATEWAY_DB_DIR="$TMP" node "$DIR/../../../servers/node/app.mjs" >"$TMP/gw.log" 2>&1 &
+else
+  GATEWAY_DB_DIR="$TMP" python3 "$DIR/../../../servers/python/app.py" >"$TMP/gw.log" 2>&1 &
+fi
 GW=$!
 trap 'kill $GW 2>/dev/null; rm -rf "$TMP"' EXIT
 

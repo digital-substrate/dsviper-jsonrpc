@@ -5,7 +5,7 @@ same graph in the **ge-py** editor and watch the vertex move as JavaScript dispa
 
 1. Serve the directory holding your graph:
    ```sh
-   GATEWAY_DB_DIR=/path/to/databases python3 server/app.py
+   GATEWAY_DB_DIR=/path/to/databases python3 servers/python/app.py
    ```
 2. In **ge-py**, open that graph and choose **"go live"**.
 3. Run the animation (the database is the file name):

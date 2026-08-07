@@ -35,7 +35,7 @@ ARCHITECTURE.md the design + wire contract
 
 ```sh
 # the gateway, serving a directory of databases (each addressed by file name):
-GATEWAY_DB_DIR=/path/to/databases python3 server/app.py      # http://127.0.0.1:8787/execute
+GATEWAY_DB_DIR=/path/to/databases python3 servers/python/app.py      # http://127.0.0.1:8787/execute
 
 # every test suite (Python in-process + JS over real HTTP):
 sh run_tests.sh

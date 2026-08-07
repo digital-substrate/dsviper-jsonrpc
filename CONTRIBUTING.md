@@ -34,7 +34,7 @@ sh run_tests.sh
 To run the server by hand against your own databases:
 
 ```bash
-GATEWAY_DB_DIR=/path/to/databases python3 server/app.py    # http://127.0.0.1:8787/execute
+GATEWAY_DB_DIR=/path/to/databases python3 servers/python/app.py    # http://127.0.0.1:8787/execute
 ```
 
 ## Architecture

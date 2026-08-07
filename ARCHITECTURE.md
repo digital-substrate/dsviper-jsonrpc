@@ -362,11 +362,11 @@ asynchronous** — the reducer is the commit (content-addressed, with history an
 
 A prototype, proven end-to-end over real HTTP. All three layers are built and tested.
 
-- **Gateway (layer 1) — built.** `server/app.py` realizes the full wire column (§3): schema,
+- **Gateway (layer 1) — built.** `servers/python/app.py` realizes the full wire column (§3): schema,
   read/query with key-pushdown and cursors, the eleven-verb commit envelope, the commit DAG,
   located errors, one-handle-per-session with a database catalog (`databases` / `connect`), and the
-  blob JSON plane. Supported by `server/source.py` (the lazy row source), `server/query.py` (the
-  tagged-tree → lazy-chain compiler), and `server/unproject.py` (embedded-key un-projection).
+  blob JSON plane. Supported by `servers/python/source.py` (the lazy row source), `servers/python/query.py` (the
+  tagged-tree → lazy-chain compiler), and `servers/python/unproject.py` (embedded-key un-projection).
 - **Basic client (layer 2a) — built.** `clients/js/client.mjs` — the wire ops as idiomatic async
   JavaScript (ESM, zero deps, Node 18+ and the browser).
 - **Store + dialect (layer 2b) — built.** `clients/js/store.mjs` (the redux-style CommitStore:

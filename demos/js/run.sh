@@ -7,7 +7,7 @@ TMP="$(mktemp -d)"
 python3 "$DIR/../../tests/fixtures/graph_fixture.py" "$TMP/scene.graph"
 
 lsof -ti:8787 2>/dev/null | xargs kill 2>/dev/null || true
-GATEWAY_DB_DIR="$TMP" python3 "$DIR/../../server/app.py" >"$TMP/gw.log" 2>&1 &
+GATEWAY_DB_DIR="$TMP" python3 "$DIR/../../servers/python/app.py" >"$TMP/gw.log" 2>&1 &
 GW=$!
 trap 'kill $GW 2>/dev/null; rm -rf "$TMP"' EXIT
 

@@ -1,10 +1,8 @@
 // Query compiler: a tagged-tree query AST -> a lazy chain over the lazy row source.
 import dsviper from '@digitalsubstrate/dsviper';
-import {compareValues, rows} from '@digitalsubstrate/dsviper-query';
+import {compareValues, predicate, rows} from '@digitalsubstrate/dsviper-query';
 
 const {Value} = dsviper;
-
-const MISSING = Symbol('missing');
 
 // ---------------------------------------------------------------- path navigation
 const PATH_RE = /([^.[\]]+)|\[(\d+)\]/g;
@@ -19,12 +17,12 @@ function parsePath(path) {
 function getPath(doc, path) {
     let cur = doc;
     for (const seg of parsePath(path)) {
-        if (cur === null || cur === undefined) return MISSING;
+        if (cur === null || cur === undefined) return undefined;
         if (typeof seg === 'number') {
-            if (!Array.isArray(cur) && typeof cur !== 'string') return MISSING;
-            if (seg >= cur.length) return MISSING;
+            if (!Array.isArray(cur) && typeof cur !== 'string') return undefined;
+            if (seg >= cur.length) return undefined;
         } else if (typeof cur !== 'object' || Array.isArray(cur) || !(seg in cur)) {
-            return MISSING;
+            return undefined;
         }
         cur = cur[seg];
     }
@@ -41,60 +39,7 @@ function setPath(doc, path, value) {
     cur[segs[segs.length - 1]] = value;
 }
 
-// ---------------------------------------------------------------- value semantics
-// Duck-typed on the runtime's total relations, the way the dsviper-query packages do
-// it: a wrapped Viper value rides its own .equals() / .compare() (total and trans-type
-// since 1.2.18), anything else falls back to native semantics. Documents are dumped to
-// JSON before the predicate runs, so the native branch is what executes today — the
-// wrapped branches keep this predicate correct for a caller that filters over values
-// instead of dumped documents.
-//
-// The native fallback is a STRUCTURAL comparison, not the packages' canonicalKey
-// token: that token folds every non-scalar to 'obj:' + String(value), which would make
-// {a: 1} and {b: 2} compare equal. It is built to key a Map/Set on scalars and wrapped
-// values, and the wire's operands are decoded JSON containers.
-function deepEqual(a, b) {
-    if (a === b) return true;
-    if (Array.isArray(a) && Array.isArray(b))
-        return a.length === b.length && a.every((x, i) => deepEqual(x, b[i]));
-    if (a && b && typeof a === 'object' && typeof b === 'object'
-        && !Array.isArray(a) && !Array.isArray(b)) {
-        const ka = Object.keys(a), kb = Object.keys(b);
-        return ka.length === kb.length && ka.every((k) => k in b && deepEqual(a[k], b[k]));
-    }
-    return false;
-}
-
-function valuesEqual(a, b) {
-    if (a !== null && a !== undefined && typeof a.equals === 'function') return a.equals(b);
-    if (b !== null && b !== undefined && typeof b.equals === 'function') return b.equals(a);
-    return deepEqual(a, b);
-}
-
-// MISSING is this module's own absent-field marker; the query layer's compareValues
-// speaks null/undefined, so it is mapped on the way in.
-const isNil = (v) => v === null || v === undefined || v === MISSING;
-const orderable = (v) => (v === MISSING ? null : v);
-
-const contains = (haystack, needle) =>
-    typeof haystack === 'string' ? haystack.includes(needle)
-        : Array.isArray(haystack) ? haystack.some((x) => valuesEqual(x, needle))
-            : false;
-
-// An order comparison requires the field to be PRESENT and non-nil, decoupled from
-// compareValues' total order (where nils sort last) — so `value > 5` excludes a
-// document without the field rather than treating its absence as a large value.
-const COMPARATORS = {
-    eq: (a, b) => valuesEqual(a, b),
-    ne: (a, b) => !valuesEqual(a, b),
-    gt: (a, b) => !isNil(a) && compareValues(a, b) > 0,
-    gte: (a, b) => !isNil(a) && compareValues(a, b) >= 0,
-    lt: (a, b) => !isNil(a) && compareValues(a, b) < 0,
-    lte: (a, b) => !isNil(a) && compareValues(a, b) <= 0,
-    in: (a, b) => contains(b, a),
-    nin: (a, b) => !contains(b, a),
-};
-
+// ---------------------------------------------------------------- predicate engine
 function isKeyOnly(node) {
     const op = node.op;
     if (op === 'not') return isKeyOnly(node.arg);
@@ -102,29 +47,23 @@ function isKeyOnly(node) {
     return 'key' in node;
 }
 
-function leafValue(node, jdoc, kf) {
-    if ('key' in node) return node.key in kf ? kf[node.key] : MISSING;
-    return getPath(jdoc, node.path);
-}
-
-function evaluate(node, jdoc, kf) {
-    const op = node.op;
-    if (op === 'and') return node.args.every((a) => evaluate(a, jdoc, kf));
-    if (op === 'or') return node.args.some((a) => evaluate(a, jdoc, kf));
-    if (op === 'not') return !evaluate(node.arg, jdoc, kf);
-    if (op === 'exists') {
-        const v = leafValue(node, jdoc, kf);
-        return (v !== MISSING && v !== null) === (node.value ?? true);
-    }
-    const comparator = COMPARATORS[op];
-    if (comparator === undefined) throw new Error(`unknown predicate op ${JSON.stringify(op)}`);
-    return comparator(leafValue(node, jdoc, kf), node.value);
-}
-
 function keyFields(key, conceptName) {
     return {instance: Value.dumps(key, true)[0], concept: conceptName};
 }
 
+// This wire lets `exists` omit its operand, meaning true; the query layer's table reads
+// a missing operand as false. Filled in before compiling so the wire keeps its meaning.
+function withExistsDefault(node) {
+    if (node.op === 'and' || node.op === 'or') return {...node, args: node.args.map(withExistsDefault)};
+    if (node.op === 'not') return {...node, arg: withExistsDefault(node.arg)};
+    if (node.op === 'exists' && node.value === undefined) return {...node, value: true};
+    return node;
+}
+
+// The query layer compiles ONE predicate over ONE object, so the object it walks is the
+// [document, key-fields] pair and the two accessors open the half they need. The wire's
+// own path syntax (bracketed indices) is why `field` stays this module's getPath rather
+// than the layer's dotted default.
 function compilePredicate(where, conceptName) {
     if (where === undefined || where === null) return [null, () => true];
 
@@ -138,16 +77,17 @@ function compilePredicate(where, conceptName) {
         [keyTerms, docTerms] = [[], [where]];
     }
 
-    const keyPred = keyTerms.length === 0 ? null : (key) => {
-        const kf = keyFields(key, conceptName);
-        return keyTerms.every((t) => evaluate(t, null, kf));
-    };
+    const compileTerms = (terms) => predicate(
+        withExistsDefault({op: 'and', args: terms}),
+        {field: (pair, path) => getPath(pair[0], path), keyField: (pair, name) => pair[1][name]});
 
-    const docPred = (jdoc, key) => {
-        if (docTerms.length === 0) return true;
-        const kf = keyFields(key, conceptName);
-        return docTerms.every((t) => evaluate(t, jdoc, kf));
-    };
+    const keyTest = keyTerms.length ? compileTerms(keyTerms) : null;
+    const docTest = docTerms.length ? compileTerms(docTerms) : null;
+
+    const keyPred = keyTest === null ? null
+        : (key) => keyTest([null, keyFields(key, conceptName)]);
+    const docPred = (jdoc, key) =>
+        docTest === null ? true : docTest([jdoc, keyFields(key, conceptName)]);
 
     return [keyPred, docPred];
 }
@@ -160,7 +100,7 @@ function applyOrder(pairs, order) {
     const out = [...pairs];
     out.sort((x, y) => {
         for (const s of specs) {
-            const c = compareValues(orderable(getPath(x[1], s.path)), orderable(getPath(y[1], s.path)));
+            const c = compareValues(getPath(x[1], s.path), getPath(y[1], s.path));
             if (c !== 0) return s.desc ? -c : c;
         }
         return 0;
@@ -212,14 +152,14 @@ function project(doc, select) {
         const out = {};
         for (const [alias, p] of Object.entries(select)) {
             const v = getPath(doc, p);
-            out[alias] = v === MISSING ? null : v;
+            out[alias] = v === undefined ? null : v;
         }
         return out;
     }
     const out = {};
     for (const p of select) {
         const v = getPath(doc, p);
-        if (v !== MISSING) setPath(out, p, v);
+        if (v !== undefined) setPath(out, p, v);
     }
     return out;
 }

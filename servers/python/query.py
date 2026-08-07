@@ -4,9 +4,11 @@ from functools import cmp_to_key
 from itertools import islice
 
 import dsviper
-from dsviper_query import compare_values, rows
+from dsviper_query import MISSING, compare_values, predicate, rows
 
-_MISSING = object()
+# The query layer's own absent marker: the predicate it compiles tests against THAT
+# object, so the accessor below must return the same one.
+_MISSING = MISSING
 
 
 # ---------------------------------------------------------------- path navigation
@@ -36,18 +38,6 @@ def _set_path(doc, path, value):
 
 
 # ---------------------------------------------------------------- predicate engine
-_COMPARATORS = {
-    "eq": lambda a, b: a == b,
-    "ne": lambda a, b: a != b,
-    "gt": lambda a, b: a is not _MISSING and a > b,
-    "gte": lambda a, b: a is not _MISSING and a >= b,
-    "lt": lambda a, b: a is not _MISSING and a < b,
-    "lte": lambda a, b: a is not _MISSING and a <= b,
-    "in": lambda a, b: a in b,
-    "nin": lambda a, b: a not in b,
-}
-
-
 def _is_key_only(node):
     op = node["op"]
     if op == "not":
@@ -57,30 +47,14 @@ def _is_key_only(node):
     return "key" in node
 
 
-def _leaf_value(node, jdoc, kf):
-    if "key" in node:
-        return kf.get(node["key"], _MISSING)
-    return _get_path(jdoc, node["path"])
-
-
-def _eval(node, jdoc, kf):
-    op = node["op"]
-    if op == "and":
-        return all(_eval(a, jdoc, kf) for a in node["args"])
-    if op == "or":
-        return any(_eval(a, jdoc, kf) for a in node["args"])
-    if op == "not":
-        return not _eval(node["arg"], jdoc, kf)
-    if op == "exists":
-        v = _leaf_value(node, jdoc, kf)
-        return (v is not _MISSING and v is not None) == node.get("value", True)
-    return _COMPARATORS[op](_leaf_value(node, jdoc, kf), node["value"])
-
-
 def _key_fields(key, concept_name):
     return {"instance": dsviper.Value.dumps(key, json=True)[0], "concept": concept_name}
 
 
+# The query layer compiles ONE predicate over ONE object, so the object it walks is the
+# (document, key-fields) pair and the two accessors open the half they need. The wire's
+# own path syntax (bracketed indices) is why `field` stays this module's `_get_path`
+# rather than the layer's dotted default.
 def _compile_predicate(where, concept_name):
     if where is None:
         return None, (lambda jdoc, key: True)
@@ -93,17 +67,35 @@ def _compile_predicate(where, concept_name):
     else:
         key_terms, doc_terms = [], [where]
 
+    def with_exists_default(node):
+        """This wire lets `exists` omit its operand, meaning True; the query layer's table
+        reads a missing operand as False. Filled in before compiling."""
+        if node["op"] in ("and", "or"):
+            return dict(node, args=[with_exists_default(a) for a in node["args"]])
+        if node["op"] == "not":
+            return dict(node, arg=with_exists_default(node["arg"]))
+        if node["op"] == "exists" and "value" not in node:
+            return dict(node, value=True)
+        return node
+
+    def compile_terms(terms):
+        return predicate(with_exists_default({"op": "and", "args": terms}),
+                         field=lambda pair, path: _get_path(pair[0], path),
+                         key_field=lambda pair, name: pair[1].get(name, _MISSING))
+
     key_pred = None
     if key_terms:
+        test = compile_terms(key_terms)
+
         def key_pred(key):
-            kf = _key_fields(key, concept_name)
-            return all(_eval(t, None, kf) for t in key_terms)
+            return test((None, _key_fields(key, concept_name)))
+
+    doc_test = compile_terms(doc_terms) if doc_terms else None
 
     def doc_pred(jdoc, key):
-        if not doc_terms:
+        if doc_test is None:
             return True
-        kf = _key_fields(key, concept_name)
-        return all(_eval(t, jdoc, kf) for t in doc_terms)
+        return doc_test((jdoc, _key_fields(key, concept_name)))
 
     return key_pred, doc_pred
 

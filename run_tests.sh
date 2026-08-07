@@ -15,6 +15,16 @@ for t in "$DIR"/tests/server/test_*.py; do
 done
 
 
+# The dialect is written twice — client-side and in the query package — so it is compared.
+# No server needed: it only diffs the trees the two translators build.
+echo "== dialect parity (no server) =="
+printf '  %-26s ' "test_dialect_parity.mjs"
+if node "$DIR/tests/clients/js/test_dialect_parity.mjs" >/tmp/js_test.log 2>&1; then
+  grep -E 'PASS [0-9]' /tmp/js_test.log | tail -1
+else
+  echo "FAIL"; tail -8 /tmp/js_test.log; rc=1
+fi
+
 # The client suite is the wire contract: run it against EVERY server implementation.
 for impl in python node; do
   echo "== client (js, real HTTP) -> server: $impl =="

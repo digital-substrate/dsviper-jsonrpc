@@ -1,5 +1,12 @@
 // The Mongo dialect, client-side: translates a Mongo filter / update into the persona-neutral
 // tagged wire forms. No transport, no runtime -- it only reshapes JSON.
+//
+// This DUPLICATES toTagged() from the consumer-side query package, deliberately. That
+// package reaches its dialect only through its index, which pulls the native binding, and a
+// HTTP client has no business loading an addon -- this module must stay importable as-is,
+// browser included, with no package.json and no install step. The duplication is held in
+// place by tests/clients/js/test_dialect_parity.mjs, which fails the moment the two
+// translators stop producing the same tree.
 
 const READ_OPS = {
     $eq: "eq", $ne: "ne", $gt: "gt", $gte: "gte", $lt: "lt", $lte: "lte",

@@ -8,12 +8,13 @@ labels: bug
 <!-- Clear description of the bug -->
 
 ## Affected area
-<!-- server (Python) / clients/js SDK (basic client, CommitStore, Mongo dialect) / the wire contract -->
+<!-- server (Python) / server (Node) / clients/js SDK (basic client, CommitStore, Mongo dialect) / the wire contract -->
 
 ## Environment
 - dsviper-jsonrpc commit/version:
 - dsviper version:
-- py-linq version:
+- dsviper-query / dsviper-node-query version:
+- which server (python / node):
 - Python version:
 - Node version (if the client is involved):
 - Operating system:

@@ -1,7 +1,7 @@
 # Node server
 
 The Node implementation of the dsviper-jsonrpc server: the same wire as the Python
-server in `server/`, over the [N_Viper](https://www.npmjs.com/package/@digitalsubstrate/dsviper)
+server in `servers/python/`, over the [N_Viper](https://www.npmjs.com/package/@digitalsubstrate/dsviper)
 binding instead of the Python one. A client cannot tell the two apart — that is the point.
 
 ## Run

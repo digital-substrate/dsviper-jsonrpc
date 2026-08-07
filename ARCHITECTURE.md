@@ -360,20 +360,31 @@ asynchronous** — the reducer is the commit (content-addressed, with history an
 
 ## 9. Status
 
-A prototype, proven end-to-end over real HTTP. All three layers are built and tested.
+A prototype, proven end-to-end over real HTTP. All three layers are built and tested, and the
+server layer has **two implementations** behind one wire.
 
-- **Gateway (layer 1) — built.** `servers/python/app.py` realizes the full wire column (§3): schema,
-  read/query with key-pushdown and cursors, the eleven-verb commit envelope, the commit DAG,
-  located errors, one-handle-per-session with a database catalog (`databases` / `connect`), and the
-  blob JSON plane. Supported by `servers/python/source.py` (the lazy row source), `servers/python/query.py` (the
-  tagged-tree → lazy-chain compiler), and `servers/python/unproject.py` (embedded-key un-projection).
+- **Server (layer 1) — built, twice.** `servers/python/app.py` and `servers/node/app.mjs` each
+  realize the full wire column (§3): schema, read/query with key-pushdown and cursors, the
+  eleven-verb commit envelope, the commit DAG, located errors, one-handle-per-session with a
+  database catalog (`databases` / `connect`), and the blob JSON plane. Each is supported by its
+  own `query.*` (the tagged-tree compiler and the cursor registry) and `unproject.*` (embedded-key
+  un-projection). Neither carries a row source or an ordering of its own: both take them from the
+  consumer-side query layer, which also evaluates the tagged tree. What stays in the servers is
+  what is genuinely theirs — the partition into key-only and document terms (the key-pushdown that
+  rejects a key before its `get()`), and this wire's path syntax with bracketed indices.
 - **Basic client (layer 2a) — built.** `clients/js/client.mjs` — the wire ops as idiomatic async
   JavaScript (ESM, zero deps, Node 18+ and the browser).
 - **Store + dialect (layer 2b) — built.** `clients/js/store.mjs` (the redux-style CommitStore:
   dispatch, subscribe, non-destructive undo/redo, divergence handling) over
   `clients/js/mongo.mjs` (the Mongo read/update dialect → the neutral wire).
-- **Tests.** `tests/server/` exercises the gateway in-process; `tests/clients/js/` drives the SDK
-  against a real HTTP gateway. `run_tests.sh` runs every suite.
+- **Tests.** `tests/server/` exercises the Python server in-process; `tests/clients/js/` drives the
+  SDK against a real HTTP server, and `run_tests.sh` runs that suite against **both** servers — the
+  wire is verified on two implementations at every run, which is what keeps it a contract rather
+  than a description of one program. `tests/clients/js/test_dialect_parity.mjs` needs no server: it
+  diffs the trees built by `mongo.mjs` and by the query layer, holding in agreement a dialect that
+  is deliberately written twice (the client must stay importable with no install step, browser
+  included, and the query package reaches its dialect only through an index that pulls a native
+  binding).
 - **Deferred.** The raw-binary blob HTTP routes (a transport optimisation over the base64 JSON
-  plane), live multi-client push (a WebSocket fed by the runtime's change notifier), session
-  idle-timeout, and a typed (generated) client.
+  plane), live multi-client push (a WebSocket fed by the runtime's change notifier), and session
+  idle-timeout.

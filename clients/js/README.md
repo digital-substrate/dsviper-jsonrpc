@@ -9,6 +9,10 @@ in Node 18+ and the browser (it uses the global `fetch`). Three modules, two lev
 | `store.mjs`  | application model | the redux-style `CommitStore` over the basic client: head + undo stack, `dispatch`, `subscribe`, `collection()` |
 | `mongo.mjs`  | dialect | a Mongo filter/update → the neutral wire (`toWhere` / `toMutations`); used by the store |
 
+`mongo.mjs` deliberately restates the dialect that the query layer also implements, so that these
+modules stay dependency-free and importable as-is. The two are held in agreement by
+`tests/clients/js/test_dialect_parity.mjs`, which fails the moment they build different trees.
+
 There is no package to install — the modules are dependency-free `.mjs` files. Vendor them and import
 by relative path (the import path depth depends on where you copy them):
 

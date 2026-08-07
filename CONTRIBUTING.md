@@ -10,15 +10,16 @@ Use [GitHub Issues](https://github.com/digital-substrate/dsviper-jsonrpc/issues)
 
 1. Fork the repository and create a feature branch from `main`
 2. Make your changes (see "Running locally" below)
-3. Run the full suite with `sh run_tests.sh` — both the Python server tests and the JS client tests must stay green
+3. Run the full suite with `sh run_tests.sh` — the Python server tests, the dialect gate, and the JS client tests against BOTH servers must stay green
 4. Open a pull request with a clear description of what changed and why
 
 ## Running locally
 
-Requires Python 3.10+ (with the `dsviper` and `py-linq` wheels) and Node 18+.
+Requires Python 3.10+ with the `dsviper` wheel, and Node 18+ for the client. The Node server
+needs Node 22+, which its query layer requires.
 
 ```bash
-pip install "dsviper<2" py-linq        # the runtime binding and the query engine
+pip install "dsviper<2"                # the runtime binding
 ```
 
 The test suite builds its fixture database from the `Graph.dsm` schema in the
@@ -54,14 +55,19 @@ See **[ARCHITECTURE.md](ARCHITECTURE.md)** for the layered design and the normat
 In short:
 
 ```
-server/         the Python server — a faithful JSON projection of the CommitDatabase
+servers/python/ the Python server — a faithful JSON projection of the CommitDatabase
+servers/node/   the Node server — the same wire, over the N_Viper binding
 clients/js/     the JavaScript SDK — basic client, CommitStore, Mongo dialect (ESM, zero deps)
 tests/          server tests (in-process) and client tests (over a real HTTP server)
 demos/js/       a live animation driven through the CommitStore
 ```
 
-The server and the clients communicate only through the neutral JSON wire; keep that boundary
+The servers and the clients communicate only through the neutral JSON wire; keep that boundary
 faithful to the `CommitDatabase` interface — no client-side state leaks into the wire.
+
+**A change to the wire is a change to two servers.** Whichever you touch, the other must follow:
+`run_tests.sh` runs the client suite against both, and a wire that only one of them honours is a
+wire that has stopped being a contract.
 
 ## License
 

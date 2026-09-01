@@ -1,6 +1,6 @@
 #!/bin/sh
-# Run the animation against a freshly-built throwaway fixture -- no ge-py needed, just proves the
-# commits flow end-to-end. For the visual demo (watch it in ge-py), follow README.md.
+# Run the animation against a freshly-built throwaway fixture -- no dsviper-ge needed, just proves the
+# commits flow end-to-end. For the visual demo (watch it in dsviper-ge), follow README.md.
 set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
 TMP="$(mktemp -d)"

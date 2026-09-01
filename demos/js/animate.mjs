@@ -1,9 +1,9 @@
 // Live demo: animate a graph vertex from JavaScript, through the CommitStore. Open the same
-// .graph file in the ge-py editor ("go live") and watch the vertex move as JS dispatches commits
+// .graph file in the dsviper-ge editor ("go live") and watch the vertex move as JS dispatches commits
 // -- each step is a real commit on the CommitDatabase, driven from a browser-grade JS client.
 //
 //   1. GATEWAY_DB_DIR=<dir-with-your-graph> python3 servers/python/app.py
-//   2. open that .graph in ge-py, then "go live"
+//   2. open that .graph in dsviper-ge, then "go live"
 //   3. node demos/js/animate.mjs <database-name> [steps]
 import {GatewayClient} from "../../clients/js/client.mjs";
 import {CommitStore, actions} from "../../clients/js/store.mjs";
@@ -32,5 +32,5 @@ for (let i = 0; i < steps; i++) {
     await sleep(120);
 }
 
-console.log("\ndone — vertex animated from JavaScript, one commit per step (watch it in ge-py)");
+console.log("\ndone — vertex animated from JavaScript, one commit per step (watch it in dsviper-ge)");
 await store.close();

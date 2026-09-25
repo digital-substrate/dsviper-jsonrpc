@@ -4,9 +4,16 @@ import assert from "node:assert/strict";
 import {randomUUID} from "node:crypto";
 import {GatewayClient, GatewayError} from "../../../clients/js/client.mjs";
 
+/** @import {Row} from "../../../clients/js/client.mjs" */
+/** The fixture's visualAttributes document. @typedef {{value: number, color: {red: number, green: number, blue: number}}} VisualAttributes */
+
 const VIS = "Graph::Vertex.visualAttributes";
 let pass = 0, fail = 0;
 
+/**
+ * @param {string} name
+ * @param {() => unknown} fn
+ */
 async function test(name, fn) {
     try {
         await fn();
@@ -38,12 +45,13 @@ await test("keys -> 5 vertices, human key {instance, concept}", async () => {
 
 await test("get -> a document", async () => {
     const ks = await db.keys(head, VIS);
-    const v = await db.get(head, VIS, ks[0]);
+    const v = /** @type {VisualAttributes} */ (await db.get(head, VIS, ks[0]));
     assert.equal(typeof v.value, "number");
 });
 
 await test("query where value>=2 (tagged)", async () => {
-    const rows = await db.query({view: head, attachment: VIS, where: {op: "gte", path: "value", value: 2}});
+    const rows = /** @type {Row<VisualAttributes>[]} */ (
+        await db.query({view: head, attachment: VIS, where: {op: "gte", path: "value", value: 2}}));
     assert(rows.length >= 1 && rows.every((r) => r.document.value >= 2));
 });
 
@@ -59,14 +67,14 @@ await test("commit round-trip (base-pinned -> commitId -> read back)", async () 
         {set: {attachment: VIS, key: {instance}, value: {value: 42, color: {red: 0, green: 0, blue: 0}}}},
     ]);
     assert.equal(commitId.length, 40);
-    const v = await db.get(commitId, VIS, {instance});
+    const v = /** @type {VisualAttributes} */ (await db.get(commitId, VIS, {instance}));
     assert.equal(v.value, 42);
 });
 
 await test("commitHeader + isAncestor", async () => {
     const h = await db.commitHeader(head);
     assert.equal(typeof h.label, "string");
-    assert.equal(await db.isAncestor(await db.firstCommitId(), head), true);
+    assert.equal(await db.isAncestor(/** @type {string} */ (await db.firstCommitId()), head), true);
 });
 
 await test("blob: createBlob / blob / unknownBlobIds (store-first)", async () => {
@@ -86,7 +94,7 @@ await test("error -> throws GatewayError carrying the code", async () => {
 
 await db.disconnect();
 await test("after disconnect, ops fail (session gone)", async () => {
-    await assert.rejects(() => db.keys(head, VIS), (e) => e.code === "Gateway:Session:Required");
+    await assert.rejects(() => db.keys(head, VIS), (/** @type {GatewayError} */ e) => e.code === "Gateway:Session:Required");
 });
 
 console.log(`\n${"=".repeat(48)}\nPASS ${pass}  /  FAIL ${fail}`);

@@ -7,10 +7,18 @@ import {randomUUID} from "node:crypto";
 import {GatewayClient} from "../../../clients/js/client.mjs";
 import {CommitStore, actions} from "../../../clients/js/store.mjs";
 
+/** @import {Row} from "../../../clients/js/client.mjs" */
+/** @import {StoreState} from "../../../clients/js/store.mjs" */
+/** The fixture's visualAttributes document. @typedef {{value: number, color: {red: number, green: number, blue: number}}} VisualAttributes */
+
 const VIS = "Graph::Vertex.visualAttributes";
-const vdoc = (v) => ({value: v, color: {red: 0, green: 0, blue: 0}});
+const vdoc = (/** @type {number} */ v) => ({value: v, color: {red: 0, green: 0, blue: 0}});
 let pass = 0, fail = 0;
 
+/**
+ * @param {string} name
+ * @param {() => unknown} fn
+ */
 async function test(name, fn) {
     try {
         await fn();
@@ -36,7 +44,7 @@ await test("open -> getState holds a head (head-as-state)", () => {
 });
 
 await test("collection.find (Mongo read) at the held head", async () => {
-    const rows = await store.collection(VIS).find({value: {$gte: 2}});
+    const rows = /** @type {Row<VisualAttributes>[]} */ (await store.collection(VIS).find({value: {$gte: 2}}));
     assert(rows.length >= 1 && rows.every((r) => r.document.value >= 2));
 });
 
@@ -45,16 +53,16 @@ await test("dispatch (redux set) advances the head + read-back", async () => {
     await store.dispatch(actions.set(VIS, KEY, vdoc(50)), "set 50");
     assert.notEqual(store.getState().head, before);
     assert.equal(store.getState().canUndo, true);
-    assert.equal((await store.collection(VIS).findOne(KEY)).value, 50);
+    assert.equal(/** @type {VisualAttributes} */ (await store.collection(VIS).findOne(KEY)).value, 50);
 });
 
 await test("collection.updateOne (Mongo $set) -> verb -> value 7", async () => {
     await store.collection(VIS).updateOne(KEY, {$set: {value: 7}});
-    assert.equal((await store.collection(VIS).findOne(KEY)).value, 7);
+    assert.equal(/** @type {VisualAttributes} */ (await store.collection(VIS).findOne(KEY)).value, 7);
 });
 
 await test("subscribe fires on dispatch with the new state", async () => {
-    let got = null;
+    let got = /** @type {StoreState | null} */ (null);
     const off = store.subscribe((s) => {
         got = s;
     });
@@ -65,15 +73,16 @@ await test("subscribe fires on dispatch with the new state", async () => {
 
 await test("undo/redo toggles via the disable-commit (faithful CommitUndoStack)", async () => {
     const col = store.collection(VIS);
-    assert.equal((await col.findOne(KEY)).value, 8);
+    /** @typedef {VisualAttributes | null} Found */
+    assert.equal(/** @type {VisualAttributes} */ (await col.findOne(KEY)).value, 8);
     await store.undo();
-    assert.notEqual((await col.findOne(KEY))?.value, 8);  // 1st undo: disableCommit(c8) + record it
+    assert.notEqual(/** @type {Found} */ (await col.findOne(KEY))?.value, 8);  // 1st undo: disableCommit(c8) + record it
     await store.redo();
-    assert.equal((await col.findOne(KEY)).value, 8);      // redo: disable the disable-commit
+    assert.equal(/** @type {VisualAttributes} */ (await col.findOne(KEY)).value, 8);      // redo: disable the disable-commit
     await store.undo();
-    assert.notEqual((await col.findOne(KEY))?.value, 8);  // 2nd undo: ENABLE the disable-commit (the toggle branch)
+    assert.notEqual(/** @type {Found} */ (await col.findOne(KEY))?.value, 8);  // 2nd undo: ENABLE the disable-commit (the toggle branch)
     await store.redo();
-    assert.equal((await col.findOne(KEY)).value, 8);      // redo again
+    assert.equal(/** @type {VisualAttributes} */ (await col.findOne(KEY)).value, 8);      // redo again
     assert.equal(store.getState().canRedo, false);
 });
 

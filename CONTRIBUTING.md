@@ -10,7 +10,7 @@ Use [GitHub Issues](https://github.com/digital-substrate/dsviper-jsonrpc/issues)
 
 1. Fork the repository and create a feature branch from `main`
 2. Make your changes (see "Running locally" below)
-3. Run the full suite with `sh run_tests.sh` — the Python server tests, the dialect gate, and the JS client tests against BOTH servers must stay green
+3. Run the full suite with `sh run_tests.sh` — the Python server tests, the dialect gate, and the JS client tests against BOTH servers must stay green — and `npm run typecheck` in `servers/node`, which checks the Node server and the JS client against their declarations
 4. Open a pull request with a clear description of what changed and why
 
 ## Running locally

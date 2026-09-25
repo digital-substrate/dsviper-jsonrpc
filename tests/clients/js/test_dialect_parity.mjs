@@ -31,10 +31,11 @@ const FILTERS = [
 ];
 
 // Key order is an artefact of how each side builds its literals, not part of the tree.
+/** @type {(x: unknown) => unknown} */
 const norm = (x) =>
     Array.isArray(x) ? x.map(norm)
         : (x !== null && typeof x === "object")
-            ? Object.fromEntries(Object.keys(x).sort().map((k) => [k, norm(x[k])]))
+            ? Object.fromEntries(Object.keys(x).sort().map((k) => [k, norm(/** @type {Record<string, unknown>} */ (x)[k])]))
             : x;
 
 let pass = 0, fail = 0;

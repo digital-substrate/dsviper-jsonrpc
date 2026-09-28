@@ -9,7 +9,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@digitalsubstrate/dsviper": ">=1.2.8 <2",
+    "@digitalsubstrate/dsviper": ">=1.2.13 <2",
     "@digitalsubstrate/dsviper-query": "file:../../../dsviper-node-query"
   },
   "license": "MIT",

@@ -91,7 +91,7 @@ not authoritative).
 ```
 
 The gateway builds a `CommitMutableState` from `base`, replays the verbs onto its
-`AttachmentMutating`, and seals with `commit_mutations(label, ms)`.
+`CommitAttachmentMutating`, and seals with `commit_mutations(label, ms)`.
 
 | Verb | Fields (besides `attachment`, `key`) | Meaning |
 |------|--------------------------------------|---------|

@@ -309,7 +309,7 @@ export class Gateway {
     }
 
     /**
-     * @param {V.AttachmentMutating} am
+     * @param {V.CommitAttachmentMutating} am
      * @param {string} verb
      * @param {MutationSpec} spec
      */

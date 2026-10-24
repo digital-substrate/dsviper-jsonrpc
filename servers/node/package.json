@@ -6,10 +6,10 @@
   "type": "module",
   "main": "app.mjs",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "dependencies": {
-    "@digitalsubstrate/dsviper": ">=1.2.13 <2",
+    "@digitalsubstrate/dsviper": ">=1.2.16 <2",
     "@digitalsubstrate/dsviper-query": "file:../../../dsviper-node-query"
   },
   "license": "MIT",
